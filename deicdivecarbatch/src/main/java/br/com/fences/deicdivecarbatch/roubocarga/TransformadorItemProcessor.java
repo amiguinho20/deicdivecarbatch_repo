@@ -1,6 +1,7 @@
 package br.com.fences.deicdivecarbatch.roubocarga;
 
 import javax.batch.api.chunk.ItemProcessor;
+import javax.ejb.EJB;
 import javax.inject.Inject;
 import javax.inject.Named;
 import javax.ws.rs.client.Client;
@@ -13,15 +14,15 @@ import javax.ws.rs.core.Response;
 import org.apache.log4j.Logger;
 
 import br.com.fences.deicdivecarbatch.config.AppConfig;
-import br.com.fences.deicdivecarbatch.roubocarga.tratamentoerro.VerificarErro;
+import br.com.fences.deicdivecarbatch.roubocarga.ejb.AdicionarGeocodeEJB;
+import br.com.fences.fencesutils.conversor.converter.Converter;
+import br.com.fences.fencesutils.rest.tratamentoerro.util.VerificarErro;
 import br.com.fences.fencesutils.verificador.Verificador;
 import br.com.fences.geocodeentidade.geocode.Endereco;
 import br.com.fences.ocorrenciaentidade.chave.OcorrenciaChave;
 import br.com.fences.ocorrenciaentidade.ocorrencia.Ocorrencia;
 import br.com.fences.ocorrenciaentidade.ocorrencia.auxiliar.Auxiliar;
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
+import br.com.fences.ocorrenciaentidade.ocorrencia.auxiliar.Point;
 
 @Named
 public class TransformadorItemProcessor implements ItemProcessor{
@@ -35,9 +36,15 @@ public class TransformadorItemProcessor implements ItemProcessor{
 	@Inject
 	private VerificarErro verificarErro;
 
+	@EJB
+	private AdicionarGeocodeEJB adicionarGeocodeEJB; //-- assincrono
 	
-	Gson gson = new GsonBuilder().create();
-
+	@Inject
+	private Converter<Ocorrencia> ocorrenciaConverter;
+	
+	@Inject
+	private Converter<Endereco> enderecoConverter;
+	
 	private String host;
 	private String port;
 	
@@ -72,9 +79,20 @@ public class TransformadorItemProcessor implements ItemProcessor{
 			throw new RuntimeException(msg);
 		}
 
-		Ocorrencia ocorrencia = gson.fromJson(json, Ocorrencia.class);
+		Ocorrencia ocorrencia = ocorrenciaConverter.paraObjeto(json, Ocorrencia.class);
 		
-		if (!Verificador.isValorado(ocorrencia.getLatitude()))
+		if (Verificador.isValorado(ocorrencia.getLatitude()))
+		{
+			double longitude = Double.parseDouble(ocorrencia.getLongitude());
+			double latitude = Double.parseDouble(ocorrencia.getLatitude());
+			ocorrencia.getAuxiliar().setGeocoderStatus("OK");
+			atribuirGeometry(ocorrencia, longitude, latitude);
+			
+			//-- envia para o eventual inclusao -- EJB assincrono
+			Endereco endereco = copiarEndereco(ocorrencia);
+			adicionarGeocodeEJB.adicionarCasoNaoExista(endereco);
+		}
+		else
 		{
 			logger.info("Ocorrencia sem geocode original, consultando o cacheGeocode...");
 			
@@ -94,13 +112,9 @@ public class TransformadorItemProcessor implements ItemProcessor{
 				throw new RuntimeException(msg);
 			}
 
-			endereco = gson.fromJson(json, Endereco.class);
+			endereco = enderecoConverter.paraObjeto(json, Endereco.class);
 			atribuirRetorno(endereco, ocorrencia);
-			logger.info("Geocode retornado com status [" + ocorrencia.getAuxiliar().getGoogleGeocoderStatus() + "].");
-		}
-		else
-		{
-			logger.info("ocorrencia com geocode original");
+			logger.info("Geocode retornado com status [" + ocorrencia.getAuxiliar().getGeocoderStatus() + "].");
 		}
 		return ocorrencia;
 	}
@@ -116,19 +130,33 @@ public class TransformadorItemProcessor implements ItemProcessor{
 		endereco.setCidade(ocorrencia.getCidade());
 		endereco.setUf(ocorrencia.getIdUf());
 		endereco.setCep(ocorrencia.getCep());
-		
+		if (ocorrencia.getAuxiliar().getGeometry() != null)
+		{
+			endereco.getGeometry().setLongitude(ocorrencia.getAuxiliar().getGeometry().getLongitude());
+			endereco.getGeometry().setLatitude(ocorrencia.getAuxiliar().getGeometry().getLatitude());
+		}
+		endereco.setGeocodeStatus(ocorrencia.getAuxiliar().getGeocoderStatus());
 		return endereco;
 	}
 	
 	private void atribuirRetorno(Endereco endereco, Ocorrencia ocorrencia)
 	{
 		Auxiliar auxiliar = ocorrencia.getAuxiliar();
-		auxiliar.setGoogleGeocoderStatus(endereco.getGeocodeStatus());
-		if (auxiliar.getGoogleGeocoderStatus().equalsIgnoreCase("OK"))
+		auxiliar.setGeocoderStatus(endereco.getGeocodeStatus());
+		if (auxiliar.getGeocoderStatus().equalsIgnoreCase("OK"))
 		{
-			auxiliar.setGoogleLatitude(endereco.getLatitude());
-			auxiliar.setGoogleLongitude(endereco.getLongitude());
+			atribuirGeometry(ocorrencia, endereco.getGeometry().getLongitude(), endereco.getGeometry().getLatitude());
 		}
+	}
+	
+	private void atribuirGeometry(Ocorrencia ocorrencia, Double longitude, Double latitude)
+	{
+		Auxiliar auxiliar = ocorrencia.getAuxiliar();
+		if (auxiliar.getGeometry() == null)
+		{
+			auxiliar.setGeometry(new Point());
+		}
+		auxiliar.getGeometry().setLngLat(longitude, latitude);
 	}
 
 }

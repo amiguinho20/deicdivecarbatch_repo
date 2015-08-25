@@ -31,6 +31,7 @@ public class LogInterceptor {
 			obj = ctx.proceed();
 		} catch (Exception e) {
 			logar(ctx, tempoInicial, e);
+			throw e;
 		}
 		logar(ctx, tempoInicial, null);
 

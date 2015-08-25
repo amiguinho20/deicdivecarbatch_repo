@@ -19,20 +19,19 @@ import javax.ws.rs.core.Response;
 
 import org.apache.log4j.Logger;
 
-import br.com.fences.deicdivecarbatch.config.AppConfig;
-import br.com.fences.deicdivecarbatch.roubocarga.tratamentoerro.VerificarErro;
-import br.com.fences.fencesutils.formatar.FormatarData;
-import br.com.fences.ocorrenciaentidade.chave.OcorrenciaChave;
-
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.reflect.TypeToken;
+
+import br.com.fences.deicdivecarbatch.config.AppConfig;
+import br.com.fences.fencesutils.conversor.converter.Converter;
+import br.com.fences.fencesutils.formatar.FormatarData;
+import br.com.fences.fencesutils.rest.tratamentoerro.util.VerificarErro;
+import br.com.fences.ocorrenciaentidade.chave.OcorrenciaChave;
 
 
 @Named
 public class ExtratorItemReader extends AbstractItemReader {
 
-	@Inject
+	@Inject 
 	private transient Logger logger;
 	
 	@Inject
@@ -41,7 +40,9 @@ public class ExtratorItemReader extends AbstractItemReader {
 	@Inject
 	private VerificarErro verificarErro;
 	
-	private Gson gson = new GsonBuilder().create();
+	@Inject
+	private Converter<OcorrenciaChave> converter;
+	//private Gson gson = new GsonBuilder().create();
 	
 	private List<OcorrenciaChave> ocorrenciasChaves = new ArrayList<>();
 	private Iterator<OcorrenciaChave> iteratorOcorrenciaChave;
@@ -54,6 +55,7 @@ public class ExtratorItemReader extends AbstractItemReader {
 		
 		host = appConfig.getServerBackendHost();
 		port = appConfig.getServerBackendPort();
+
 		
 		logger.info("Recuperar ultima data de registro carregada...");
 		Client client = ClientBuilder.newClient();
@@ -68,10 +70,15 @@ public class ExtratorItemReader extends AbstractItemReader {
 		if (verificarErro.contemErro(response, json))
 		{
 			String msg = verificarErro.criarMensagem(response, json, servico);
-			logger.error(msg);
+			logger.error(msg); 
 			throw new RuntimeException(msg);
 		}
-		String ultimaDataDeRegistro = json;
+		String ultimaDataDeRegistro = json;  
+		
+//		//TODO force...
+//		ultimaDataDeRegistro = "20100801000000";
+		
+		
 		logger.info("Ultima data de registro carregada: " + ultimaDataDeRegistro);
 		logger.info("Montando periodo de pesquisa...");
 
@@ -89,6 +96,10 @@ public class ExtratorItemReader extends AbstractItemReader {
 						calDataCorrente.getTime());
 		
 		String dataRegistroFinal = dataCorrente;
+		
+		//TODO force2...
+		dataRegistroFinal = "20100806235959";
+		
 		logger.info("Periodo de pesquisa inicial[" + dataRegistroInicial + "] final[" + dataRegistroFinal + "]");
 		
 		logger.info("Chamada ao servico de pesquisa de chaves de roubo de carga...");
@@ -113,10 +124,11 @@ public class ExtratorItemReader extends AbstractItemReader {
 			throw new RuntimeException(msg);
 		}
 
+
 		Type collectionType = new TypeToken<List<OcorrenciaChave>>(){}.getType();
-		ocorrenciasChaves = gson.fromJson(json, collectionType);
-//		ocorrenciasChaves.add(new OcorrenciaChave("10374", "2015", "5552", "20150617000757"));
-//		ocorrenciasChaves.add(new OcorrenciaChave("10374", "2015", "5553", "20150617002747"));
+		ocorrenciasChaves = (List<OcorrenciaChave>) converter.paraObjeto(json, collectionType);
+//		ocorrenciasChaves.add(new OcorrenciaChave("20250", "2010", "4325", "20100801030816"));
+//		ocorrenciasChaves.add(new OcorrenciaChave("10308", "2010", "1789", "20100920130105"));  
 		iteratorOcorrenciaChave = ocorrenciasChaves.iterator();
 		logger.info("Foram lidas [" + ocorrenciasChaves.size() + "] chaves para carga.");
 		

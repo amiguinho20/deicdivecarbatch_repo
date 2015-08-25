@@ -14,11 +14,9 @@ import javax.ws.rs.core.Response;
 
 import org.apache.log4j.Logger;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-
 import br.com.fences.deicdivecarbatch.config.AppConfig;
-import br.com.fences.deicdivecarbatch.roubocarga.tratamentoerro.VerificarErro;
+import br.com.fences.fencesutils.conversor.converter.Converter;
+import br.com.fences.fencesutils.rest.tratamentoerro.util.VerificarErro;
 import br.com.fences.ocorrenciaentidade.ocorrencia.Ocorrencia;
 
 @Named
@@ -33,10 +31,13 @@ public class GravadorItemWriter extends AbstractItemWriter{
 	@Inject
 	private VerificarErro verificarErro;
 	
+	@Inject
+	private Converter<Ocorrencia> ocorrenciaConverter;
+	
 	private String host;
 	private String port;
 	
-	private Gson gson = new GsonBuilder().create();
+	//private Gson gson = new GsonBuilder().create();
 	
 	@Override
 	public void writeItems(List<Object> items) throws Exception {
@@ -49,7 +50,7 @@ public class GravadorItemWriter extends AbstractItemWriter{
 			Ocorrencia ocorrencia = (Ocorrencia) item;
 			
 			logger.info("Gravando... " + msgOcorrencia(ocorrencia));
-			String json = gson.toJson(ocorrencia);
+			String json = ocorrenciaConverter.paraJson(ocorrencia);
 			Client client = ClientBuilder.newClient();
 			String servico = "http://" + host + ":"+ port + "/deicdivecarbackend/rest/" + 
 					"rouboCarga/adicionar";
