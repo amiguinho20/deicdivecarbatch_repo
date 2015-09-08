@@ -1,4 +1,4 @@
-package br.com.fences.deicdivecarbatch.roubocarga;
+package br.com.fences.deicdivecarbatch.indiciado;
 
 import java.io.Serializable;
 import java.lang.reflect.Type;
@@ -27,7 +27,7 @@ import br.com.fences.ocorrenciaentidade.controle.ControleOcorrencia;
 
 
 @Named
-public class ExtratorItemReader extends AbstractItemReader {
+public class IndiciadoItemReader extends AbstractItemReader {
 
 	@Inject 
 	private transient Logger logger;
@@ -57,7 +57,7 @@ public class ExtratorItemReader extends AbstractItemReader {
 		logger.info("Recuperar registros para PROCESSAR e REPROCESSAR do controle...");
 		Client client = ClientBuilder.newClient();
 		String servico = "http://" + host + ":"+ port + "/deicdivecarbackend/rest/" + 
-				"controleOcorrencia/pesquisarProcessarReprocessar";
+				"controleOcorrencia/pesquisarIndiciadosProcessarReprocessar";
 		WebTarget webTarget = client
 				.target(servico);
 		Response response = webTarget

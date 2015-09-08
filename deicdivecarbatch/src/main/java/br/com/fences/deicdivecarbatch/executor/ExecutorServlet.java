@@ -1,4 +1,4 @@
-package br.com.fences.deicdivecarbatch.roubocarga.teste;
+package br.com.fences.deicdivecarbatch.executor;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -21,8 +21,8 @@ import br.com.fences.fencesutils.verificador.Verificador;
 /**
  * Servlet implementation class Teste
  */
-@WebServlet("/Teste")
-public class Teste extends HttpServlet {
+@WebServlet("/ExecutorServlet")
+public class ExecutorServlet extends HttpServlet {
 	private static final long serialVersionUID = 1L;
        
 
@@ -34,6 +34,7 @@ public class Teste extends HttpServlet {
 		response.setContentType("text/html;charset=UTF-8");
 		
 		String abortar = request.getParameter("abortar");
+		String job = request.getParameter("job");
 		
 		try (PrintWriter out = response.getWriter()) {
 			JobOperator jo = BatchRuntime.getJobOperator();
@@ -60,9 +61,15 @@ public class Teste extends HttpServlet {
 			}
 			else
 			{
-				long jid = jo.start("CarregarRouboCarga", new Properties());
-				out.println("Job submetido: " + jid + "<br>");
-				out.println("Status: " + jo.getJobExecution(jid).getBatchStatus() + "<br>");
+				if (Verificador.isValorado(job)){
+					long jid = jo.start(job, new Properties());
+					out.println("Job submetido: " + jid + "<br>");
+					out.println("Status: " + jo.getJobExecution(jid).getBatchStatus() + "<br>");
+				}
+				else
+				{
+					out.println("O parametro job esta nulo.<br>");
+				}
 			}
 			
 			
@@ -70,7 +77,7 @@ public class Teste extends HttpServlet {
 			out.println("</body>");
 			out.println("</html>");
 		} catch (JobStartException | JobSecurityException ex) {
-			Logger.getLogger(Teste.class.getName()).log(Level.SEVERE,
+			Logger.getLogger(ExecutorServlet.class.getName()).log(Level.SEVERE,
 					null, ex);
 		}
 		

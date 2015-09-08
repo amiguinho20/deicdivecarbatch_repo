@@ -1,0 +1,27 @@
+<job id="carregarIndiciado" xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+	version="1.0" restartable="false">
+	<step id="meuStep">
+		<properties>
+			<property name="javax.transaction.global.timeout" value="900"/>
+		</properties>
+		<chunk item-count="5" skip-limit="3">
+			<reader ref="indiciadoItemReader" />
+			<processor ref="indiciadoItemProcessor" />
+			<writer ref="indiciadoItemWriter" />
+
+<!-- 
+			<skippable-exception-classes>
+				<include class="javax.transaction.RollbackException" />
+				<include class="java.lang.IllegalStateException" />
+				<include class="com.ibm.jbatch.container.exception.TransactionManagementException" />
+			</skippable-exception-classes>
+			
+			<no-rollback-exception-classes>
+				<include class="javax.transaction.RollbackException" />
+				<include class="java.lang.IllegalStateException" />
+				<include class="com.ibm.jbatch.container.exception.TransactionManagementException" />
+			</no-rollback-exception-classes>
+-->
+		</chunk>
+	</step>
+</job>

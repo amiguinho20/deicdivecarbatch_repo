@@ -1,0 +1,12 @@
+<job id="carregarChavesRouboCarga" xmlns="http://xmlns.jcp.org/xml/ns/javaee"
+	version="1.0" restartable="false">
+	<step id="meuStep">
+		<properties>
+			<property name="javax.transaction.global.timeout" value="900"/>
+		</properties>
+		
+		<batchlet ref="controleOcorrenciaBatchlet"/>
+		
+		
+	</step>
+</job>

@@ -2,11 +2,9 @@ package br.com.fences.deicdivecarbatch.roubocarga;
 
 import java.io.Serializable;
 import java.lang.reflect.Type;
-import java.util.ArrayList;
-import java.util.Calendar;
-import java.util.Date;
 import java.util.Iterator;
-import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Set;
 
 import javax.batch.api.chunk.AbstractItemReader;
 import javax.inject.Inject;
@@ -23,9 +21,9 @@ import com.google.gson.reflect.TypeToken;
 
 import br.com.fences.deicdivecarbatch.config.AppConfig;
 import br.com.fences.fencesutils.conversor.converter.Converter;
-import br.com.fences.fencesutils.formatar.FormatarData;
 import br.com.fences.fencesutils.rest.tratamentoerro.util.VerificarErro;
-import br.com.fences.ocorrenciaentidade.chave.OcorrenciaChave;
+import br.com.fences.fencesutils.verificador.Verificador;
+import br.com.fences.ocorrenciaentidade.controle.ControleOcorrencia;
 
 
 @Named
@@ -41,11 +39,10 @@ public class ExtratorItemReader extends AbstractItemReader {
 	private VerificarErro verificarErro;
 	
 	@Inject
-	private Converter<OcorrenciaChave> converter;
-	//private Gson gson = new GsonBuilder().create();
+	private Converter<ControleOcorrencia> converterControleOcorrencia;
 	
-	private List<OcorrenciaChave> ocorrenciasChaves = new ArrayList<>();
-	private Iterator<OcorrenciaChave> iteratorOcorrenciaChave;
+	private Set<ControleOcorrencia> controleOcorrencias = new LinkedHashSet<>();
+	private Iterator<ControleOcorrencia> iteratorControleOcorrencias;
 	
 	private String host;
 	private String port;
@@ -57,10 +54,10 @@ public class ExtratorItemReader extends AbstractItemReader {
 		port = appConfig.getServerBackendPort();
 
 		
-		logger.info("Recuperar ultima data de registro carregada...");
+		logger.info("Recuperar registros para PROCESSAR e REPROCESSAR do controle...");
 		Client client = ClientBuilder.newClient();
 		String servico = "http://" + host + ":"+ port + "/deicdivecarbackend/rest/" + 
-				"rouboCarga/pesquisarUltimaDataRegistroNaoComplementar";
+				"controleOcorrencia/pesquisarProcessarReprocessar";
 		WebTarget webTarget = client
 				.target(servico);
 		Response response = webTarget
@@ -73,64 +70,13 @@ public class ExtratorItemReader extends AbstractItemReader {
 			logger.error(msg); 
 			throw new RuntimeException(msg);
 		}
-		String ultimaDataDeRegistro = json;  
-		
-//		//TODO force...
-//		ultimaDataDeRegistro = "20100801000000";
-		
-		
-		logger.info("Ultima data de registro carregada: " + ultimaDataDeRegistro);
-		logger.info("Montando periodo de pesquisa...");
-
-		Date dtUltimaDataDeRegistro = FormatarData.getAnoMesDiaHoraMinutoSegundoConcatenados().parse(ultimaDataDeRegistro);
-		Calendar calUltimaDataDeRegistro = Calendar.getInstance();
-		calUltimaDataDeRegistro.setTime(dtUltimaDataDeRegistro);
-		calUltimaDataDeRegistro.add(Calendar.SECOND, 1); //-- para nao selecionar o ultimo registro carregado.
-		String dataRegistroInicial = FormatarData.getAnoMesDiaHoraMinutoSegundoConcatenados().format(calUltimaDataDeRegistro.getTime());
-		logger.info("Ultima data de registro adicionado 1 segundo a mais: " + dataRegistroInicial);
-		
-		Calendar calDataCorrente = Calendar.getInstance();
-		calDataCorrente.add(Calendar.HOUR_OF_DAY, -1); //-- ajuste de seguranca
-		String dataCorrente = FormatarData
-				.getAnoMesDiaHoraMinutoSegundoConcatenados().format(
-						calDataCorrente.getTime());
-		
-		String dataRegistroFinal = dataCorrente;
-		
-		//TODO force2...
-		dataRegistroFinal = "20100806235959";
-		
-		logger.info("Periodo de pesquisa inicial[" + dataRegistroInicial + "] final[" + dataRegistroFinal + "]");
-		
-		logger.info("Chamada ao servico de pesquisa de chaves de roubo de carga...");
-		client = ClientBuilder.newClient();
-		servico = "http://"
-				+ appConfig.getOcorrenciaRdoBackendHost()
-				+ ":"
-				+ appConfig.getOcorrenciaRdoBackendPort()
-				+ "/ocorrenciardobackend/rest/"
-				+ "rdoextrair/pesquisarRouboDeCarga/{dataRegistroInicial}/{dataRegistroFinal}";
-		webTarget = client.target(servico);
-		response = webTarget
-				.resolveTemplate("dataRegistroInicial", dataRegistroInicial)
-				.resolveTemplate("dataRegistroFinal", dataRegistroFinal)
-				.request(MediaType.APPLICATION_JSON)
-				.get();
-		json = response.readEntity(String.class);
-		if (verificarErro.contemErro(response, json))
+		Type collectionType = new TypeToken<Set<ControleOcorrencia>>(){}.getType();
+		if (Verificador.isValorado(json) && !json.equalsIgnoreCase("null"))
 		{
-			String msg = verificarErro.criarMensagem(response, json, servico);
-			logger.error(msg);
-			throw new RuntimeException(msg);
+			controleOcorrencias = (Set<ControleOcorrencia>) converterControleOcorrencia.paraObjeto(json, collectionType);
 		}
-
-
-		Type collectionType = new TypeToken<List<OcorrenciaChave>>(){}.getType();
-		ocorrenciasChaves = (List<OcorrenciaChave>) converter.paraObjeto(json, collectionType);
-//		ocorrenciasChaves.add(new OcorrenciaChave("20250", "2010", "4325", "20100801030816"));
-//		ocorrenciasChaves.add(new OcorrenciaChave("10308", "2010", "1789", "20100920130105"));  
-		iteratorOcorrenciaChave = ocorrenciasChaves.iterator();
-		logger.info("Foram lidas [" + ocorrenciasChaves.size() + "] chaves para carga.");
+		iteratorControleOcorrencias = controleOcorrencias.iterator();
+		logger.info("Foram lidos [" + controleOcorrencias.size() + "] registros de controle para carga.");
 		
 	}
 	
@@ -138,19 +84,19 @@ public class ExtratorItemReader extends AbstractItemReader {
 	 * O container ira parar de chamar esse metodo quando retornar nulo.
 	 */
 	@Override
-	public OcorrenciaChave readItem() throws Exception 
+	public ControleOcorrencia readItem() throws Exception 
 	{
-		OcorrenciaChave ocorrenciaChave = null;
-		if (iteratorOcorrenciaChave.hasNext())
+		ControleOcorrencia controleOcorrencia = null;
+		if (iteratorControleOcorrencias.hasNext())
 		{
-			ocorrenciaChave = iteratorOcorrenciaChave.next();
+			controleOcorrencia = iteratorControleOcorrencias.next();
 		}
-		if (ocorrenciaChave == null)
+		if (controleOcorrencia == null)
 		{
 			logger.info("Nao existe mais registro para leitura. Termino do Job.");
 		}
 		
-		return ocorrenciaChave;
+		return controleOcorrencia;
 	}
 
 }

@@ -15,11 +15,12 @@ import org.apache.log4j.Logger;
 
 import br.com.fences.deicdivecarbatch.config.AppConfig;
 import br.com.fences.deicdivecarbatch.roubocarga.ejb.AdicionarGeocodeEJB;
+import br.com.fences.deicdivecarbatch.roubocarga.to.OcorrenciaCompostaTO;
 import br.com.fences.fencesutils.conversor.converter.Converter;
 import br.com.fences.fencesutils.rest.tratamentoerro.util.VerificarErro;
 import br.com.fences.fencesutils.verificador.Verificador;
 import br.com.fences.geocodeentidade.geocode.Endereco;
-import br.com.fences.ocorrenciaentidade.chave.OcorrenciaChave;
+import br.com.fences.ocorrenciaentidade.controle.ControleOcorrencia;
 import br.com.fences.ocorrenciaentidade.ocorrencia.Ocorrencia;
 import br.com.fences.ocorrenciaentidade.ocorrencia.auxiliar.Auxiliar;
 import br.com.fences.ocorrenciaentidade.ocorrencia.auxiliar.Point;
@@ -49,14 +50,14 @@ public class TransformadorItemProcessor implements ItemProcessor{
 	private String port;
 	
 	@Override
-	public Ocorrencia processItem(Object item) throws Exception 
+	public OcorrenciaCompostaTO processItem(Object item) throws Exception 
 	{
-		OcorrenciaChave ocorrenciaChave = (OcorrenciaChave) item;
+		ControleOcorrencia controleOcorrencia = (ControleOcorrencia) item;
 		
 		host = appConfig.getServerBackendHost();
 		port = appConfig.getServerBackendPort();
 		
-		logger.info("Extraindo... " + ocorrenciaChave);
+		logger.info("Extraindo... " + controleOcorrencia);
 		Client client = ClientBuilder.newClient();
 		String servico = "http://"
 				+ appConfig.getOcorrenciaRdoBackendHost()
@@ -66,9 +67,9 @@ public class TransformadorItemProcessor implements ItemProcessor{
 				+ "rdoextrair/consultarOcorrencia/{idDelegacia}/{anoBo}/{numBo}";
 		WebTarget webTarget = client.target(servico);
 		Response response = webTarget
-				.resolveTemplate("idDelegacia", ocorrenciaChave.getIdDelegacia())
-				.resolveTemplate("anoBo", ocorrenciaChave.getAnoBo())
-				.resolveTemplate("numBo", ocorrenciaChave.getNumBo())
+				.resolveTemplate("idDelegacia", controleOcorrencia.getIdDelegacia())
+				.resolveTemplate("anoBo", controleOcorrencia.getAnoBo())
+				.resolveTemplate("numBo", controleOcorrencia.getNumBo())
 				.request(MediaType.APPLICATION_JSON)
 				.get();
 		String json = response.readEntity(String.class);
@@ -81,7 +82,7 @@ public class TransformadorItemProcessor implements ItemProcessor{
 
 		Ocorrencia ocorrencia = ocorrenciaConverter.paraObjeto(json, Ocorrencia.class);
 		
-		if (Verificador.isValorado(ocorrencia.getLatitude()))
+		if (Verificador.isValorado(ocorrencia.getLatitude()) && Verificador.isValorado(ocorrencia.getLongitude()))
 		{
 			double longitude = Double.parseDouble(ocorrencia.getLongitude());
 			double latitude = Double.parseDouble(ocorrencia.getLatitude());
@@ -116,7 +117,9 @@ public class TransformadorItemProcessor implements ItemProcessor{
 			atribuirRetorno(endereco, ocorrencia);
 			logger.info("Geocode retornado com status [" + ocorrencia.getAuxiliar().getGeocoderStatus() + "].");
 		}
-		return ocorrencia;
+		
+		OcorrenciaCompostaTO ocorrenciaCompostaTO = new OcorrenciaCompostaTO(ocorrencia, controleOcorrencia);
+		return ocorrenciaCompostaTO;
 	}
 	
 	

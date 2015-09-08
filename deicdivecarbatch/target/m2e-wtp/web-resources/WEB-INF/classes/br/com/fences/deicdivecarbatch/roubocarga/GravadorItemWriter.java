@@ -15,8 +15,12 @@ import javax.ws.rs.core.Response;
 import org.apache.log4j.Logger;
 
 import br.com.fences.deicdivecarbatch.config.AppConfig;
+import br.com.fences.deicdivecarbatch.roubocarga.to.OcorrenciaCompostaTO;
+import br.com.fences.fencesutils.constante.EstadoProcessamento;
 import br.com.fences.fencesutils.conversor.converter.Converter;
 import br.com.fences.fencesutils.rest.tratamentoerro.util.VerificarErro;
+import br.com.fences.fencesutils.verificador.Verificador;
+import br.com.fences.ocorrenciaentidade.controle.ControleOcorrencia;
 import br.com.fences.ocorrenciaentidade.ocorrencia.Ocorrencia;
 
 @Named
@@ -34,6 +38,9 @@ public class GravadorItemWriter extends AbstractItemWriter{
 	@Inject
 	private Converter<Ocorrencia> ocorrenciaConverter;
 	
+	@Inject
+	private Converter<ControleOcorrencia> controleOcorrenciaConverter;
+	
 	private String host;
 	private String port;
 	
@@ -47,7 +54,10 @@ public class GravadorItemWriter extends AbstractItemWriter{
 		
 		for (Object item : items)
 		{
-			Ocorrencia ocorrencia = (Ocorrencia) item;
+			OcorrenciaCompostaTO ocorrenciaCompostaTO = (OcorrenciaCompostaTO) item;
+			Ocorrencia ocorrencia = ocorrenciaCompostaTO.getOcorrencia();
+			
+			ControleOcorrencia controleOcorrencia = ocorrenciaCompostaTO.getControleOcorrencia();
 			
 			logger.info("Gravando... " + msgOcorrencia(ocorrencia));
 			String json = ocorrenciaConverter.paraJson(ocorrencia);
@@ -62,15 +72,51 @@ public class GravadorItemWriter extends AbstractItemWriter{
 					.request(MediaType.APPLICATION_JSON)
 					.put(Entity.json(json));
 			json = response.readEntity(String.class);
-			if (verificarErro.contemErro(response, json))
+			ocorrencia = ocorrenciaConverter.paraObjeto(json, Ocorrencia.class);
+			if (verificarErro.contemErro(response, json) || !Verificador.isValorado(ocorrencia.getId()))
 			{
-				String msg = verificarErro.criarMensagem(response, json, servico);
-				logger.error(msg);
-				throw new RuntimeException(msg);
+				registrarControle(controleOcorrencia, false);
+				logger.info("Ocorrencia registrada com erro.");
 			}
-			logger.info("Ocorrencia registrada com sucesso.");
+			else
+			{
+				controleOcorrencia.setIdOcorrencia(ocorrencia.getId());
+				registrarControle(controleOcorrencia, true);
+				logger.info("Ocorrencia registrada com sucesso.");
+			}
 		}
 		
+	}
+	
+	private void registrarControle(ControleOcorrencia controleOcorrencia, boolean sucesso)
+	{
+		
+		if (sucesso)
+		{
+			controleOcorrencia.setEstadoProcessamentoOcorrencia(EstadoProcessamento.OK);
+			controleOcorrencia.setEstadoProcessamentoIndiciados(EstadoProcessamento.PROCESSAR);
+		}
+		else
+		{
+			controleOcorrencia.setEstadoProcessamentoOcorrencia(EstadoProcessamento.ERRO);
+		}
+		
+		String json = controleOcorrenciaConverter.paraJson(controleOcorrencia);
+		Client client = ClientBuilder.newClient();
+		String servico = "http://" + host + ":"+ port + "/deicdivecarbackend/rest/" + 
+				"controleOcorrencia/substituir";
+		WebTarget webTarget = client.target(servico);
+		
+		Response response = webTarget
+				.request(MediaType.APPLICATION_JSON)
+				.post(Entity.json(json));
+		json = response.readEntity(String.class);
+		if (verificarErro.contemErro(response, json))
+		{
+			String msg = verificarErro.criarMensagem(response, json, servico);
+			logger.error(msg);
+			throw new RuntimeException(msg);
+		}
 	}
 	
 	private String msgOcorrencia(Ocorrencia ocorrencia)
