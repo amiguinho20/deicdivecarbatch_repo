@@ -2,6 +2,7 @@ package br.com.fences.deicdivecarbatch.executor;
 
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.util.List;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -9,7 +10,10 @@ import java.util.logging.Logger;
 import javax.batch.operations.JobOperator;
 import javax.batch.operations.JobSecurityException;
 import javax.batch.operations.JobStartException;
+import javax.batch.operations.NoSuchJobException;
 import javax.batch.runtime.BatchRuntime;
+import javax.batch.runtime.JobExecution;
+import javax.batch.runtime.JobInstance;
 import javax.servlet.ServletException;
 import javax.servlet.annotation.WebServlet;
 import javax.servlet.http.HttpServlet;
@@ -48,7 +52,7 @@ public class ExecutorServlet extends HttpServlet {
 			{
 				try 
 				{
-					long jid = Long.parseLong(abortar);
+					long jid = Long.parseLong(abortar);    
 					out.println("Status antes: " + jo.getJobExecution(jid).getBatchStatus() + "<br>");
 					//jo.abandon(jid);
 					jo.stop(jid);
@@ -62,9 +66,58 @@ public class ExecutorServlet extends HttpServlet {
 			else
 			{
 				if (Verificador.isValorado(job)){
-					long jid = jo.start(job, new Properties());
-					out.println("Job submetido: " + jid + "<br>");
-					out.println("Status: " + jo.getJobExecution(jid).getBatchStatus() + "<br>");
+					
+					//jo.getJobInstances(jobName, start, count);
+					
+					String jobXmlId = Character.toLowerCase(job.charAt(0)) + job.substring(1, job.length());
+					
+					List<Long> idRunningExecutions = null;
+					try{
+						idRunningExecutions = jo.getRunningExecutions(jobXmlId);
+					} catch (NoSuchJobException e )
+					{
+						out.println("NoSuchJobException [" + jobXmlId + "]: " + e.getMessage()  + "<br>");
+					}
+					out.println("execucoes para o [" + jobXmlId + "]: " + idRunningExecutions  + "<br>");
+
+					List<JobInstance> instances = null;
+					try{
+						instances = jo.getJobInstances(jobXmlId, 0, 10);
+					}
+					catch (NoSuchJobException e )
+					{
+						out.println("NoSuchJobException [" + jobXmlId + "]: " + e.getMessage()  + "<br>");
+					}
+					
+					if (instances != null)
+					{
+						for (JobInstance instance : instances)
+						{
+							JobExecution execution = jo.getJobExecution(instance.getInstanceId());
+							out.println("jobName: " + execution.getJobName() + "<br>");
+							out.println("execId: " + execution.getExecutionId() + "<br>");
+							out.println("status: " + execution.getBatchStatus() + "<br>");
+							out.println("createTime: " + execution.getCreateTime() + "<br>");
+							out.println("startTime: " + execution.getStartTime() + "<br>");
+							out.println("endTime: " + execution.getEndTime() + "<br>");
+							out.println("exitStatus: " + execution.getExitStatus() + "<br>");
+							out.println("..." + "<br>");
+						}
+					}	
+					
+				
+					if (idRunningExecutions == null)
+					{
+						long jid = jo.start(job, new Properties());
+						out.println("Job submetido: " + jid + "<br>");
+						out.println("Status: " + jo.getJobExecution(jid).getBatchStatus() + "<br>");
+					}
+					else
+					{
+						out.println("Job nao executado por ter um jah em execucao com o id: " + idRunningExecutions + "<br>");
+					}
+										
+					
 				}
 				else
 				{
